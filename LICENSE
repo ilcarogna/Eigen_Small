@@ -1,0 +1,38 @@
+MIT License
+
+Copyright (c) 2026 Giancarlo de Gasperis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ACKNOWLEDGMENTS:
+
+This implementation was developed independently from scratch, following the
+algorithms described in:
+
+1. Smith, O.K. (1961). "Eigenvalues of a symmetric 3×3 matrix"
+   Communications of the ACM, Vol. 4, No. 4, p. 168.
+   DOI: 10.1145/355578.366316
+
+2. Kopp, J. (2008). "Efficient numerical diagonalization of hermitian 3×3 matrices"
+   International Journal of Modern Physics C, Vol. 19, No. 03, pp. 523-548.
+   arXiv: physics/0610206
+
+Implementation in modern Fortran 2008 with dual precision (sp/dp) support.
