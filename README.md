@@ -24,7 +24,7 @@
 
 ### References
 
-1. Smith, O.K. (1961). *Eigenvalues of a symmetric 3×3 matrix*. CACM **4**(4), 168. DOI: [10.1145/355578.366316](https://doi.org/10.1145/355578.366316)
+1. Smith, O.K. (1961). *Eigenvalues of a symmetric 3×3 matrix*. CACM **4**(4), 168. [DOI](https://doi.org/10.1145/355578.366316), [CACM](https://cacm.acm.org/research/eigenvalues-of-a-symmetric-3-x-3-matrix/)
 2. Kopp, J. (2008). *Efficient numerical diagonalization of hermitian 3×3 matrices*. IJMPC **19**(03), 523. arXiv: [physics/0610206](https://arxiv.org/abs/physics/0610206)
 
 ## Usage
@@ -99,7 +99,7 @@ MIT License. See `LICENSE` file for details.
 
 This implementation was developed independently from scratch, following the algorithms in:
 
-- **Smith, O.K. (1961)**: *Eigenvalues of a symmetric 3×3 matrix*. Analytical formulas for eigendecomposition.
+- **Smith, O.K. (1961)**: *Eigenvalues of a symmetric 3×3 matrix*. Analytical formulas for eigendecomposition ([CACM](https://cacm.acm.org/research/eigenvalues-of-a-symmetric-3-x-3-matrix/), [ACM DOI](https://dl.acm.org/doi/10.1145/355578.366316)).
 - **Kopp, J. (2008)**: *Efficient numerical diagonalization of hermitian 3×3 matrices*. Trigonometric method for 3×3 eigendecomposition ([arXiv:physics/0610206](https://arxiv.org/abs/physics/0610206)).
 
 Implementation: Modern Fortran 2008 with dual precision (sp/dp) support.
