@@ -260,8 +260,8 @@ contains
     real(dp) :: tr2, disc, nrm, thr
 
     tr2  = 0.5_dp * (a11 + a22)
-    ! max(0) protegge da arrotondamenti che rendano il radicando negativo
-    disc = sqrt(max(0.0_dp, 0.25_dp*(a11 - a22)**2 + a12*a12))
+    ! hypot evita overflow/underflow nel calcolo di sqrt(x^2 + y^2)
+    disc = hypot(0.5_dp*(a11 - a22), a12)
 
     lambda(1) = tr2 - disc
     lambda(2) = tr2 + disc
@@ -295,8 +295,8 @@ contains
     real(sp) :: tr2, disc, nrm, thr
 
     tr2  = 0.5_sp * (a11 + a22)
-    ! max(0) protegge da arrotondamenti che rendano il radicando negativo
-    disc = sqrt(max(0.0_sp, 0.25_sp*(a11 - a22)**2 + a12*a12))
+    ! hypot evita overflow/underflow nel calcolo di sqrt(x^2 + y^2)
+    disc = hypot(0.5_sp*(a11 - a22), a12)
 
     lambda(1) = tr2 - disc
     lambda(2) = tr2 + disc
