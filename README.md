@@ -7,7 +7,7 @@
 
 ## Overview
 
-`eigen_small` computes eigenvalues and eigenvectors of 2×2 and 3×3 symmetric matrices using **analytical formulas** (no iteration). It is an **almost plug-in replacement** for LAPACK's `dsyev`/`ssyev` for small matrices, offering ~15-30× speedup while maintaining comparable accuracy.
+`eigen_small` computes eigenvalues and eigenvectors of 2×2 and 3×3 real, symmetric matrices using **analytical formulas** (no iteration). It is an **almost plug-in replacement** for LAPACK's `dsyev`/`ssyev` for small matrices, offering ~15-30× speedup while maintaining comparable accuracy.
 
 **Key features:**
 - Analytical solution: O(1) complexity for 2×2, deterministic trigonometric method for 3×3
@@ -70,7 +70,7 @@ gfortran -O3 eigen_small.f90 example.f90 -o example && ./example
 
 ## Performance
 
-Benchmark speedup: **30× faster** than LAPACK for 3×3 matrices.
+Benchmark speedup: **15-30× faster** than LAPACK for 3×3 matrices.
 
 For 2×2 matrices, speedup reaches ~**30×**.
 
@@ -78,7 +78,7 @@ For 2×2 matrices, speedup reaches ~**30×**.
 
 Test suite in `tests/double/` (dp) and `tests/single/` (sp) validates against LAPACK:
 ```bash
-make test    # Run all tests
+make help    # Print a help message
 make double  # Double precision only
 make single  # Single precision only
 ```
@@ -88,7 +88,7 @@ Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), and reconstructi
 ## Limitations
 
 - **Fixed size**: only 2×2 and 3×3 (use LAPACK for larger matrices)
-- **Symmetry not checked**: undefined behavior for non-symmetric input
+- **Symmetry not checked**: undefined behavior for non-symmetric input if `uplo`=`'F'`
 - **Accuracy**: tested for `cond(M) < 10¹²` (dp); extremely ill-conditioned matrices may yield less accurate eigenvectors
 
 ## License
@@ -97,7 +97,7 @@ MIT License. See `LICENSE` file for details.
 
 ## Acknowledgments
 
-This implementation was developed independently from scratch, following the algorithms in:
+This implementation was developed independently from scratch, following the algorithms described in:
 
 - **Smith, O.K. (1961)**: *Eigenvalues of a symmetric 3×3 matrix*. Analytical formulas for eigendecomposition ([CACM](https://cacm.acm.org/research/eigenvalues-of-a-symmetric-3-x-3-matrix/), [ACM DOI](https://dl.acm.org/doi/10.1145/355578.366316)).
 - **Kopp, J. (2008)**: *Efficient numerical diagonalization of hermitian 3×3 matrices*. Trigonometric method for 3×3 eigendecomposition ([arXiv:physics/0610206](https://arxiv.org/abs/physics/0610206)).
