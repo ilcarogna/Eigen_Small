@@ -362,11 +362,13 @@ contains
   !   Il prodotto vettoriale di due righe lin. indip. e' proporzionale
   !   all'autovettore. Si sceglie la coppia con norma massima (piu' stabile).
   !
-  ! GESTIONE AUTOVALORI RIPETUTI (quattro casi):
+  ! DEFLAZIONE (core3):
   !   1) lambda1 = lambda2 = lambda3  ->  U = I
-  !   2) lambda1 = lambda2 < lambda3  ->  v3 ben definito, two_ortho per v1,v2
-  !   3) lambda1 < lambda2 = lambda3  ->  v1 ben definito, two_ortho per v2,v3
-  !   4) tutti distinti               ->  tre eigvec3 + raffinamento GS
+  !   2) altrimenti si sceglie l'autovalore piu' isolato (gap massimo) e se ne
+  !      calcola il vettore v con i cofattori; i due restanti si risolvono nel
+  !      piano ortogonale a v (two_ortho) con un 2x2 proiettato (core2).
+  !      Gli autovalori escono dal Rayleigh di v e dal 2x2: errore quadratico
+  !      nell'errore dei vettori, anche con autovalori quasi coincidenti.
   !=============================================================================
 
   pure subroutine eigenvalues3_dp(A, lambda)
@@ -478,7 +480,7 @@ contains
       v = c23;  nrm = sqrt(n23)
     end if
 
-    if (nrm > epsilon(nrm)) then
+    if (nrm > tiny(nrm)) then
       v = v / nrm
     else
       v = [1.0_dp, 0.0_dp, 0.0_dp]   ! fallback: autovalore triplo degenere
@@ -507,49 +509,24 @@ contains
       v = c23;  nrm = sqrt(n23)
     end if
 
-    if (nrm > epsilon(nrm)) then
+    if (nrm > tiny(nrm)) then
       v = v / nrm
     else
       v = [1.0_sp, 0.0_sp, 0.0_sp]   ! fallback: autovalore triplo degenere
     end if
   end subroutine eigvec3_sp
 
-  !> Raffinamento di ortogonalita' per autovalori tutti distinti.
-  !  Gram-Schmidt parziale: rimuove la componente di col2 lungo col1,
-  !  poi usa il prodotto vettoriale per col3 (ortogonalita' esatta di macchina).
-  pure subroutine gs3_dp(U)
-    real(dp), intent(inout) :: U(3,3)
-    real(dp) :: nrm
-    U(:,2) = U(:,2) - dot_product(U(:,2), U(:,1)) * U(:,1)
-    nrm = norm2(U(:,2))
-    if (nrm > epsilon(nrm)) U(:,2) = U(:,2) / nrm
-    U(:,3) = cross_dp(U(:,1), U(:,2))
-  end subroutine gs3_dp
-
-  pure subroutine gs3_sp(U)
-    real(sp), intent(inout) :: U(3,3)
-    real(sp) :: nrm
-    U(:,2) = U(:,2) - dot_product(U(:,2), U(:,1)) * U(:,1)
-    nrm = norm2(U(:,2))
-    if (nrm > epsilon(nrm)) U(:,2) = U(:,2) / nrm
-    U(:,3) = cross_sp(U(:,1), U(:,2))
-  end subroutine gs3_sp
 
   !> Kernel completo 3x3: autovalori + autovettori con gestione casi ripetuti.
   pure subroutine core3_dp(A, lambda, U)
     real(dp), intent(in)  :: A(3,3)
     real(dp), intent(out) :: lambda(3), U(3,3)
-    real(dp) :: tol, scale, As(3,3)
-    integer :: k
+    real(dp) :: tol, scale, As(3,3), lam(3), v(3), u1(3), u2(3), C(2,2), mu(2), V2(2,2)
+    real(dp) :: w1(3), w2(3)
+    integer   :: iso
 
-    ! Normalizza A per il calcolo degli autovettori.
-    ! Gli autovettori di A e di A/scale sono identici, ma eigvec3 usa un
-    ! threshold ASSOLUTO (epsilon) sul modulo del cross-product.
-    ! Per matrici con elementi molto piccoli (es. O(1e-12)) i cross-product
-    ! hanno norma ~O(scale^2) che puo' scendere sotto epsilon, portando
-    ! al fallback [1,0,0] per tutti gli autovettori (|U^TU-I| ~ 1).
-    ! Con A normalizzata i cross-product sono O(1) e il threshold funziona.
-
+    ! Normalizza A: gli autovettori non cambiano e i cross-product di eigvec3
+    ! restano O(1) (vedi anche i commenti storici in eigenvalues3).
     scale = maxval(abs(A))
     if (scale > 0.0_dp) then
       As = A / scale
@@ -560,109 +537,129 @@ contains
       return
     end if
 
-    call eigenvalues3_dp(As, lambda)     ! ← As normalizzata
-    lambda = lambda * scale              ! ← ri-scala dopo
+    call eigenvalues3_dp(As, lam)
 
-    ! Tolleranza per il riconoscimento di autovalori coincidenti.
-    ! Usa max(|lambda|, epsilon) invece di max(|lambda|, 1) per restare
-    ! scale-invariante anche per matrici con autovalori molto piccoli.
+    ! Tolleranza per il caso triplo, scale-invariante
     tol = epsilon(1.0_dp) * 128.0_dp * &
-          max(abs(lambda(1)), abs(lambda(3)), epsilon(1.0_dp))
+          max(abs(lam(1)), abs(lam(3)), epsilon(1.0_dp))
 
-    if (abs(lambda(3) - lambda(1)) < tol) then
-      ! Caso 1: lambda1 = lambda2 = lambda3 -> base canonica
+    if (abs(lam(3) - lam(1)) < tol) then
+      ! lambda1 = lambda2 = lambda3 -> base canonica
       U = 0.0_dp
       U(1,1) = 1.0_dp;  U(2,2) = 1.0_dp;  U(3,3) = 1.0_dp
+      lambda = lam * scale
+      return
+    end if
 
-    else if (abs(lambda(2) - lambda(1)) < tol) then
-      ! Caso 2: lambda1 = lambda2 < lambda3 -> v3 ben definito
-      ! Passa As e lambda scalato: eigvec3 lavora su matrice O(1)
-      call eigvec3_dp(As, lambda(3)/scale, U(:,3))
-      call two_ortho_dp(U(:,3), U(:,1), U(:,2))
-
-    else if (abs(lambda(3) - lambda(2)) < tol) then
-      ! Caso 3: lambda1 < lambda2 = lambda3 -> v1 ben definito
-      call eigvec3_dp(As, lambda(1)/scale, U(:,1))
-      call two_ortho_dp(U(:,1), U(:,2), U(:,3))
-
+    ! Deflazione. L'autovalore piu' isolato (gap massimo dagli altri) ha un
+    ! autovettore ben condizionato (errore ~ eps/gap) che si ottiene
+    ! direttamente dai cofattori. I due restanti, magari quasi coincidenti,
+    ! vengono risolti nel piano ortogonale a v con un problema 2x2: cosi'
+    ! l'errore del cluster non contamina l'autovettore isolato (come
+    ! accadeva con v3 = v1 x v2) e gli autovalori del cluster escono dal
+    ! 2x2 proiettato, quindi con errore quadratico nell'errore del vettore.
+    if (lam(3) - lam(2) >= lam(2) - lam(1)) then
+      iso = 3
     else
-      ! Caso 4: tutti distinti -> tre autovettori + raffinamento GS
-      call eigvec3_dp(As, lambda(1)/scale, U(:,1))
-      call eigvec3_dp(As, lambda(2)/scale, U(:,2))
-      call eigvec3_dp(As, lambda(3)/scale, U(:,3))
-      call gs3_dp(U)
+      iso = 1
     end if
 
-    ! Raffinamento di Rayleigh: lambda_k = v_k^T As v_k.
-    ! L'errore degli autovalori trigonometrici e' amplificato da 1/gap quando
-    ! due autovalori sono vicini (matrici quasi singolari); il quoziente di
-    ! Rayleigh e' quadratico nell'errore dell'autovettore e lo riduce di
-    ! parecchi ordini di grandezza. Escluso il caso triplo (U = I).
-    if (abs(lambda(3) - lambda(1)) >= tol) then
-      do k = 1, 3
-        lambda(k) = scale * dot_product(U(:,k), matmul(As, U(:,k)))
-      end do
+    call eigvec3_dp(As, lam(iso), v)
+    call two_ortho_dp(v, u1, u2)
+
+    w1 = matmul(As, u1);  w2 = matmul(As, u2)
+    C(1,1) = dot_product(u1, w1)
+    C(1,2) = dot_product(u1, w2)
+    C(2,1) = C(1,2)
+    C(2,2) = dot_product(u2, w2)
+    call core2_dp(C(1,1), C(1,2), C(2,2), mu, V2)
+
+    ! Autovettori del cluster nella base (u1,u2); mu e' gia' crescente
+    w1 = u1*V2(1,1) + u2*V2(2,1)
+    w2 = u1*V2(1,2) + u2*V2(2,2)
+
+    if (iso == 3) then
+      U(:,1) = w1;  U(:,2) = w2;  U(:,3) = v
+      lambda(1:2) = mu
+      lambda(3)   = dot_product(v, matmul(As, v))   ! Rayleigh
+    else
+      U(:,1) = v;   U(:,2) = w1;  U(:,3) = w2
+      lambda(1)   = dot_product(v, matmul(As, v))
+      lambda(2:3) = mu
     end if
+    lambda = lambda * scale
   end subroutine core3_dp
 
   pure subroutine core3_sp(A, lambda, U)
     real(sp), intent(in)  :: A(3,3)
     real(sp), intent(out) :: lambda(3), U(3,3)
-    real(sp) :: tol, scale, As(3,3)
-    integer :: k
+    real(sp) :: tol, scale, As(3,3), lam(3), v(3), u1(3), u2(3), C(2,2), mu(2), V2(2,2)
+    real(sp) :: w1(3), w2(3)
+    integer   :: iso
 
-    ! Normalizza A per il calcolo degli autovettori (vedi commento in core3_dp)
+    ! Normalizza A: gli autovettori non cambiano e i cross-product di eigvec3
+    ! restano O(1) (vedi anche i commenti storici in eigenvalues3).
     scale = maxval(abs(A))
     if (scale > 0.0_sp) then
       As = A / scale
     else
+      ! Matrice nulla: qualsiasi base ortonormale e' corretta
       U = 0.0_sp;  U(1,1)=1.0_sp;  U(2,2)=1.0_sp;  U(3,3)=1.0_sp
       lambda = 0.0_sp
       return
     end if
 
-    call eigenvalues3_sp(As, lambda)     ! ← As normalizzata
-    lambda = lambda * scale              ! ← ri-scala dopo
+    call eigenvalues3_sp(As, lam)
 
-    ! Tolleranza per il riconoscimento di autovalori coincidenti.
-    ! Usa max(|lambda|, epsilon) invece di max(|lambda|, 1) per restare
-    ! scale-invariante anche per matrici con autovalori molto piccoli.
+    ! Tolleranza per il caso triplo, scale-invariante
     tol = epsilon(1.0_sp) * 128.0_sp * &
-          max(abs(lambda(1)), abs(lambda(3)), epsilon(1.0_sp))
+          max(abs(lam(1)), abs(lam(3)), epsilon(1.0_sp))
 
-    if (abs(lambda(3) - lambda(1)) < tol) then
-      ! Caso 1: lambda1 = lambda2 = lambda3 -> base canonica
+    if (abs(lam(3) - lam(1)) < tol) then
+      ! lambda1 = lambda2 = lambda3 -> base canonica
       U = 0.0_sp
       U(1,1) = 1.0_sp;  U(2,2) = 1.0_sp;  U(3,3) = 1.0_sp
+      lambda = lam * scale
+      return
+    end if
 
-    else if (abs(lambda(2) - lambda(1)) < tol) then
-      ! Caso 2: lambda1 = lambda2 < lambda3 -> v3 ben definito
-      call eigvec3_sp(As, lambda(3)/scale, U(:,3))
-      call two_ortho_sp(U(:,3), U(:,1), U(:,2))
-
-    else if (abs(lambda(3) - lambda(2)) < tol) then
-      ! Caso 3: lambda1 < lambda2 = lambda3 -> v1 ben definito
-      call eigvec3_sp(As, lambda(1)/scale, U(:,1))
-      call two_ortho_sp(U(:,1), U(:,2), U(:,3))
-
+    ! Deflazione. L'autovalore piu' isolato (gap massimo dagli altri) ha un
+    ! autovettore ben condizionato (errore ~ eps/gap) che si ottiene
+    ! direttamente dai cofattori. I due restanti, magari quasi coincidenti,
+    ! vengono risolti nel piano ortogonale a v con un problema 2x2: cosi'
+    ! l'errore del cluster non contamina l'autovettore isolato (come
+    ! accadeva con v3 = v1 x v2) e gli autovalori del cluster escono dal
+    ! 2x2 proiettato, quindi con errore quadratico nell'errore del vettore.
+    if (lam(3) - lam(2) >= lam(2) - lam(1)) then
+      iso = 3
     else
-      ! Caso 4: tutti distinti -> tre autovettori + raffinamento GS
-      call eigvec3_sp(As, lambda(1)/scale, U(:,1))
-      call eigvec3_sp(As, lambda(2)/scale, U(:,2))
-      call eigvec3_sp(As, lambda(3)/scale, U(:,3))
-      call gs3_sp(U)
+      iso = 1
     end if
 
-    ! Raffinamento di Rayleigh: lambda_k = v_k^T As v_k.
-    ! L'errore degli autovalori trigonometrici e' amplificato da 1/gap quando
-    ! due autovalori sono vicini (matrici quasi singolari); il quoziente di
-    ! Rayleigh e' quadratico nell'errore dell'autovettore e lo riduce di
-    ! parecchi ordini di grandezza. Escluso il caso triplo (U = I).
-    if (abs(lambda(3) - lambda(1)) >= tol) then
-      do k = 1, 3
-        lambda(k) = scale * dot_product(U(:,k), matmul(As, U(:,k)))
-      end do
+    call eigvec3_sp(As, lam(iso), v)
+    call two_ortho_sp(v, u1, u2)
+
+    w1 = matmul(As, u1);  w2 = matmul(As, u2)
+    C(1,1) = dot_product(u1, w1)
+    C(1,2) = dot_product(u1, w2)
+    C(2,1) = C(1,2)
+    C(2,2) = dot_product(u2, w2)
+    call core2_sp(C(1,1), C(1,2), C(2,2), mu, V2)
+
+    ! Autovettori del cluster nella base (u1,u2); mu e' gia' crescente
+    w1 = u1*V2(1,1) + u2*V2(2,1)
+    w2 = u1*V2(1,2) + u2*V2(2,2)
+
+    if (iso == 3) then
+      U(:,1) = w1;  U(:,2) = w2;  U(:,3) = v
+      lambda(1:2) = mu
+      lambda(3)   = dot_product(v, matmul(As, v))   ! Rayleigh
+    else
+      U(:,1) = v;   U(:,2) = w1;  U(:,3) = w2
+      lambda(1)   = dot_product(v, matmul(As, v))
+      lambda(2:3) = mu
     end if
+    lambda = lambda * scale
   end subroutine core3_sp
 
   !=============================================================================
