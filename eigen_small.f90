@@ -247,32 +247,44 @@ contains
   ! Per A = [[a, b], [b, d]] gli autovalori sono:
   !   lambda(1,2) = (a+d)/2 -/+ sqrt(((a-d)/2)^2 + b^2)
   !
-  ! Autovettori (caso b != 0):
-  !   v1 proporzionale a [b, lambda1 - a]
-  !   v2 = [-( lambda1-a ), b]  (ortogonale a v1 per costruzione)
+  ! Autovettori (caso b != 0), con delta = (a-d)/2, disc = sqrt(delta^2+b^2):
+  !   delta >= 0: v1 proporzionale a [b, -(delta+disc)]
+  !   delta <  0: v1 proporzionale a [disc-delta, -b]
+  !   (le due forme sono equivalenti a [b, lambda1-a], ma evitano la
+  !   cancellazione in lambda1-a quando |b| << |a-d|)
+  !   v2 = [-v1(2), v1(1)]  (ortogonale a v1 per costruzione)
   !
-  ! Caso diagonale (b ~ 0): vettori canonici ordinati per autovalore.
+  ! Caso diagonale (b = 0 esatto): vettori canonici ordinati per autovalore.
   !=============================================================================
 
   pure subroutine core2_dp(a11, a12, a22, lambda, U)
     real(dp), intent(in)  :: a11, a12, a22
     real(dp), intent(out) :: lambda(2), U(2,2)
-    real(dp) :: tr2, disc, nrm, thr
+    real(dp) :: tr2, delta, disc, nrm
 
-    tr2  = 0.5_dp * (a11 + a22)
+    tr2   = 0.5_dp * (a11 + a22)
+    delta = 0.5_dp * (a11 - a22)
     ! hypot evita overflow/underflow nel calcolo di sqrt(x^2 + y^2)
-    disc = hypot(0.5_dp*(a11 - a22), a12)
+    disc  = hypot(delta, a12)
 
     lambda(1) = tr2 - disc
     lambda(2) = tr2 + disc
 
-    ! Soglia relativa per il test di off-diagonale
-    thr = epsilon(a12) * max(abs(a11), abs(a22), 1.0_dp)
-
-    if (abs(a12) > thr) then
-      U(1,1) = a12
-      U(2,1) = lambda(1) - a11
-      nrm    = hypot(U(1,1),U(2,1))
+    ! Nessuna soglia sull'off-diagonale: il ramo diagonale e' riservato a
+    ! a12 = 0 esatto, cosi' il test e' invariante di scala; per a12 /= 0 le
+    ! formule sotto sono stabili anche quando a12 << |a11-a22|.
+    if (abs(a12) > 0.0_dp) then
+      ! Autovettore di lambda(1) dalla riga di (A - lambda1*I) senza
+      ! cancellazione: a11-lambda1 = delta+disc e a22-lambda1 = disc-delta;
+      ! si usa quella i cui addendi hanno segno concorde.
+      if (delta >= 0.0_dp) then
+        U(1,1) = a12
+        U(2,1) = -(delta + disc)
+      else
+        U(1,1) = disc - delta
+        U(2,1) = -a12
+      end if
+      nrm    = hypot(U(1,1), U(2,1))
       U(:,1) = U(:,1) / nrm
       ! Secondo autovettore ortogonale al primo per costruzione
       U(1,2) = -U(2,1)
@@ -292,22 +304,31 @@ contains
   pure subroutine core2_sp(a11, a12, a22, lambda, U)
     real(sp), intent(in)  :: a11, a12, a22
     real(sp), intent(out) :: lambda(2), U(2,2)
-    real(sp) :: tr2, disc, nrm, thr
+    real(sp) :: tr2, delta, disc, nrm
 
-    tr2  = 0.5_sp * (a11 + a22)
+    tr2   = 0.5_sp * (a11 + a22)
+    delta = 0.5_sp * (a11 - a22)
     ! hypot evita overflow/underflow nel calcolo di sqrt(x^2 + y^2)
-    disc = hypot(0.5_sp*(a11 - a22), a12)
+    disc  = hypot(delta, a12)
 
     lambda(1) = tr2 - disc
     lambda(2) = tr2 + disc
 
-    ! Soglia relativa per il test di off-diagonale
-    thr = epsilon(a12) * max(abs(a11), abs(a22), 1.0_sp)
-
-    if (abs(a12) > thr) then
-      U(1,1) = a12
-      U(2,1) = lambda(1) - a11
-      nrm    = hypot(U(1,1),U(2,1))
+    ! Nessuna soglia sull'off-diagonale: il ramo diagonale e' riservato a
+    ! a12 = 0 esatto, cosi' il test e' invariante di scala; per a12 /= 0 le
+    ! formule sotto sono stabili anche quando a12 << |a11-a22|.
+    if (abs(a12) > 0.0_sp) then
+      ! Autovettore di lambda(1) dalla riga di (A - lambda1*I) senza
+      ! cancellazione: a11-lambda1 = delta+disc e a22-lambda1 = disc-delta;
+      ! si usa quella i cui addendi hanno segno concorde.
+      if (delta >= 0.0_sp) then
+        U(1,1) = a12
+        U(2,1) = -(delta + disc)
+      else
+        U(1,1) = disc - delta
+        U(2,1) = -a12
+      end if
+      nrm    = hypot(U(1,1), U(2,1))
       U(:,1) = U(:,1) / nrm
       ! Secondo autovettore ortogonale al primo per costruzione
       U(1,2) = -U(2,1)
@@ -327,14 +348,14 @@ contains
   !=============================================================================
   ! SEZIONE 4 – KERNEL 3x3
   !
-  ! AUTOVALORI – metodo trigonometrico (Smith 1961, Kopp 2008):
+  ! AUTOVALORI – metodo trigonometrico (Smith 1961) nella variante di Kopp (2008):
   !   1) Test di diagonalita': off-diag^2 << diag^2 -> restituisce diag(A)
-  !   2) q = trace(A)/3
-  !   3) p = sqrt(||A-q*I||^2_F / 6)
-  !   4) B = (A - q*I)/p  -> autovalori di B in [-2,2] (condizionamento ottimo)
-  !   5) r = det(B)/2, clampato in [-1,1]  (protegge acos)
-  !   6) phi = acos(r)/3
-  !   7) lambda_k = q + 2*p*cos(phi + 2*pi*k/3), k=0,1,2
+  !   2) q = trace(A)/3; B = A - q*I ha polinomio x^3 + c1*x + c0 = 0
+  !   3) pp = -3*c1, qq = -13.5*c0, disc = 27*(c1^2*(pp-c1)/4 + c0*(qq+6.75*c0))
+  !   4) phi = atan2(sqrt(disc), qq)/3   (al posto di acos(det(B)/2))
+  !   5) lambda = q + {2c/3, -(c+3s)/3, -(c-3s)/3},
+  !      c = sqrt(pp)*cos(phi), s = sqrt(pp)*sin(phi)/sqrt(3)
+  !   La matrice e' gia' normalizzata (max|A_ij| = 1) da core3.
   !
   ! AUTOVETTORI – prodotti vettoriali dei cofattori:
   !   Le righe di (A - lambda*I) sono ortogonali all'autovettore cercato.
@@ -351,18 +372,13 @@ contains
   pure subroutine eigenvalues3_dp(A, lambda)
     real(dp), intent(in)  :: A(3,3)
     real(dp), intent(out) :: lambda(3)
-    real(dp) :: p1, p2, q, p, r, phi, B(3,3), p_diag
+    real(dp) :: p1, q, d1, d2, d3, c1, c0, pp, qq, disc, phi, c, s, p_diag
 
     ! Somma quadratica degli elementi fuori diagonale
     p1 = A(1,2)**2 + A(1,3)**2 + A(2,3)**2
 
-    ! Test di diagonalita' SCALE-INVARIANTE:
-    !   confronta off-diag^2 con diag^2, senza costanti assolute.
-    !   Il vecchio "+ 1.0" proteggeva il caso matrice nulla ma rendeva
-    !   il test insensibile alla scala: per elementi O(1e-12) la soglia
-    !   diventava epsilon_dp * 1.0 >> p1, classificando erroneamente
-    !   come diagonale una matrice densa piccola.
-    !   Correzione: il caso nulla e' coperto da "0 <= 0" senza addendi.
+    ! Test di diagonalita' scale-invariante: off-diag^2 vs diag^2, senza
+    ! costanti assolute (il caso nulla e' coperto da 0 <= 0).
     p_diag = A(1,1)**2 + A(2,2)**2 + A(3,3)**2
     if (p1 <= epsilon(1.0_dp) * p_diag) then
       lambda = [A(1,1), A(2,2), A(3,3)]
@@ -370,36 +386,41 @@ contains
       return
     end if
 
+    ! Variante di Kopp: si lavora su B = A - q*I (traccia nulla), il cui
+    ! polinomio caratteristico e' x^3 + c1*x + c0 = 0.
     q  = (A(1,1) + A(2,2) + A(3,3)) / 3.0_dp
-    p2 = (A(1,1)-q)**2 + (A(2,2)-q)**2 + (A(3,3)-q)**2 + 2.0_dp*p1
-    p  = sqrt(p2 / 6.0_dp)
+    d1 = A(1,1) - q;  d2 = A(2,2) - q;  d3 = A(3,3) - q
+    c1 = d1*d2 + d1*d3 + d2*d3 - p1
+    c0 = -(d1*d2*d3 + 2.0_dp*A(1,2)*A(1,3)*A(2,3) &
+           - d1*A(2,3)**2 - d2*A(1,3)**2 - d3*A(1,2)**2)    ! = -det(B)
 
-    ! Matrice normalizzata B = (A - q*I)/p: autovalori in [-2, 2]
-    B(1,1) = (A(1,1)-q)/p;  B(2,2) = (A(2,2)-q)/p;  B(3,3) = (A(3,3)-q)/p
-    B(1,2) = A(1,2)/p;      B(2,1) = B(1,2)
-    B(1,3) = A(1,3)/p;      B(3,1) = B(1,3)
-    B(2,3) = A(2,3)/p;      B(3,2) = B(2,3)
+    pp   = -3.0_dp * c1                       ! >= 0
+    qq   = -13.5_dp * c0
+    ! Il discriminante del polinomio e' calcolato direttamente dai
+    ! coefficienti e l'angolo si ottiene con atan2(sqrt(disc), qq): a
+    ! differenza di acos(det(B)/2) non perde precisione quando due autovalori
+    ! sono vicini (disc -> 0, atan2 e' ben condizionata).
+    disc = 27.0_dp * (0.25_dp*c1*c1*(pp - c1) + c0*(qq + 6.75_dp*c0))
+    phi  = atan2(sqrt(abs(disc)), qq) / 3.0_dp
 
-    ! r teoricamente in [-1,1]; clamping protegge acos da errori floating-point
-    r   = max(-1.0_dp, min(1.0_dp, 0.5_dp * det3_dp(B)))
-    phi = acos(r) / 3.0_dp
-
-    ! Tutti e tre calcolati con coseno diretto: evita la sottrazione di Vieta
-    ! (stessa logica di eigenvalues3_sp, meno critica in dp ma piu' corretta).
-    lambda(1) = q + 2.0_dp*p * cos(phi)
-    lambda(2) = q + 2.0_dp*p * cos(phi + 2.0_dp*PI_DP/3.0_dp)
-    lambda(3) = q + 2.0_dp*p * cos(phi + 4.0_dp*PI_DP/3.0_dp)
+    c = sqrt(pp) * cos(phi)
+    s = sqrt(pp) * sin(phi) / sqrt(3.0_dp)
+    lambda(1) = q + 2.0_dp*c/3.0_dp
+    lambda(2) = q - (c + 3.0_dp*s)/3.0_dp
+    lambda(3) = q - (c - 3.0_dp*s)/3.0_dp
     call sort3_dp(lambda)
   end subroutine eigenvalues3_dp
 
   pure subroutine eigenvalues3_sp(A, lambda)
     real(sp), intent(in)  :: A(3,3)
     real(sp), intent(out) :: lambda(3)
-    real(sp) :: p1, p2, q, p, r, phi, B(3,3), p_diag
+    real(sp) :: p1, q, d1, d2, d3, c1, c0, pp, qq, disc, phi, c, s, p_diag
 
+    ! Somma quadratica degli elementi fuori diagonale
     p1 = A(1,2)**2 + A(1,3)**2 + A(2,3)**2
 
-    ! Test di diagonalita' scale-invariante (vedi commento in eigenvalues3_dp)
+    ! Test di diagonalita' scale-invariante: off-diag^2 vs diag^2, senza
+    ! costanti assolute (il caso nulla e' coperto da 0 <= 0).
     p_diag = A(1,1)**2 + A(2,2)**2 + A(3,3)**2
     if (p1 <= epsilon(1.0_sp) * p_diag) then
       lambda = [A(1,1), A(2,2), A(3,3)]
@@ -407,26 +428,28 @@ contains
       return
     end if
 
+    ! Variante di Kopp: si lavora su B = A - q*I (traccia nulla), il cui
+    ! polinomio caratteristico e' x^3 + c1*x + c0 = 0.
     q  = (A(1,1) + A(2,2) + A(3,3)) / 3.0_sp
-    p2 = (A(1,1)-q)**2 + (A(2,2)-q)**2 + (A(3,3)-q)**2 + 2.0_sp*p1
-    p  = sqrt(p2 / 6.0_sp)
+    d1 = A(1,1) - q;  d2 = A(2,2) - q;  d3 = A(3,3) - q
+    c1 = d1*d2 + d1*d3 + d2*d3 - p1
+    c0 = -(d1*d2*d3 + 2.0_sp*A(1,2)*A(1,3)*A(2,3) &
+           - d1*A(2,3)**2 - d2*A(1,3)**2 - d3*A(1,2)**2)    ! = -det(B)
 
-    B(1,1) = (A(1,1)-q)/p;  B(2,2) = (A(2,2)-q)/p;  B(3,3) = (A(3,3)-q)/p
-    B(1,2) = A(1,2)/p;      B(2,1) = B(1,2)
-    B(1,3) = A(1,3)/p;      B(3,1) = B(1,3)
-    B(2,3) = A(2,3)/p;      B(3,2) = B(2,3)
+    pp   = -3.0_sp * c1                       ! >= 0
+    qq   = -13.5_sp * c0
+    ! Il discriminante del polinomio e' calcolato direttamente dai
+    ! coefficienti e l'angolo si ottiene con atan2(sqrt(disc), qq): a
+    ! differenza di acos(det(B)/2) non perde precisione quando due autovalori
+    ! sono vicini (disc -> 0, atan2 e' ben condizionata).
+    disc = 27.0_sp * (0.25_sp*c1*c1*(pp - c1) + c0*(qq + 6.75_sp*c0))
+    phi  = atan2(sqrt(abs(disc)), qq) / 3.0_sp
 
-    r   = max(-1.0_sp, min(1.0_sp, 0.5_sp * det3_sp(B)))
-    phi = acos(r) / 3.0_sp
-
-    ! Tutti e tre calcolati con coseno diretto: evita la sottrazione di Vieta
-    !   lambda(2) = 3q - lambda(1) - lambda(3)
-    ! che perde cifre in singola precisione quando lambda(1) e lambda(3)
-    ! sono entrambi vicini a q (cancellazione catastrofica).
-    ! I tre angoli 0, 2pi/3, 4pi/3 coprono uniformemente il cerchio.
-    lambda(1) = q + 2.0_sp*p * cos(phi)
-    lambda(2) = q + 2.0_sp*p * cos(phi + 2.0_sp*PI_SP/3.0_sp)
-    lambda(3) = q + 2.0_sp*p * cos(phi + 4.0_sp*PI_SP/3.0_sp)
+    c = sqrt(pp) * cos(phi)
+    s = sqrt(pp) * sin(phi) / sqrt(3.0_sp)
+    lambda(1) = q + 2.0_sp*c/3.0_sp
+    lambda(2) = q - (c + 3.0_sp*s)/3.0_sp
+    lambda(3) = q - (c - 3.0_sp*s)/3.0_sp
     call sort3_sp(lambda)
   end subroutine eigenvalues3_sp
 
@@ -517,6 +540,7 @@ contains
     real(dp), intent(in)  :: A(3,3)
     real(dp), intent(out) :: lambda(3), U(3,3)
     real(dp) :: tol, scale, As(3,3)
+    integer :: k
 
     ! Normalizza A per il calcolo degli autovettori.
     ! Gli autovettori di A e di A/scale sono identici, ma eigvec3 usa un
@@ -568,12 +592,24 @@ contains
       call eigvec3_dp(As, lambda(3)/scale, U(:,3))
       call gs3_dp(U)
     end if
+
+    ! Raffinamento di Rayleigh: lambda_k = v_k^T As v_k.
+    ! L'errore degli autovalori trigonometrici e' amplificato da 1/gap quando
+    ! due autovalori sono vicini (matrici quasi singolari); il quoziente di
+    ! Rayleigh e' quadratico nell'errore dell'autovettore e lo riduce di
+    ! parecchi ordini di grandezza. Escluso il caso triplo (U = I).
+    if (abs(lambda(3) - lambda(1)) >= tol) then
+      do k = 1, 3
+        lambda(k) = scale * dot_product(U(:,k), matmul(As, U(:,k)))
+      end do
+    end if
   end subroutine core3_dp
 
   pure subroutine core3_sp(A, lambda, U)
     real(sp), intent(in)  :: A(3,3)
     real(sp), intent(out) :: lambda(3), U(3,3)
     real(sp) :: tol, scale, As(3,3)
+    integer :: k
 
     ! Normalizza A per il calcolo degli autovettori (vedi commento in core3_dp)
     scale = maxval(abs(A))
@@ -615,6 +651,17 @@ contains
       call eigvec3_sp(As, lambda(2)/scale, U(:,2))
       call eigvec3_sp(As, lambda(3)/scale, U(:,3))
       call gs3_sp(U)
+    end if
+
+    ! Raffinamento di Rayleigh: lambda_k = v_k^T As v_k.
+    ! L'errore degli autovalori trigonometrici e' amplificato da 1/gap quando
+    ! due autovalori sono vicini (matrici quasi singolari); il quoziente di
+    ! Rayleigh e' quadratico nell'errore dell'autovettore e lo riduce di
+    ! parecchi ordini di grandezza. Escluso il caso triplo (U = I).
+    if (abs(lambda(3) - lambda(1)) >= tol) then
+      do k = 1, 3
+        lambda(k) = scale * dot_product(U(:,k), matmul(As, U(:,k)))
+      end do
     end if
   end subroutine core3_sp
 
