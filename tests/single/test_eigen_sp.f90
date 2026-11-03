@@ -16,9 +16,11 @@
 !       densa generica, quasi-singolare
 !       --> in tutti i casi si confronta con LAPACK, NON con valori a mano
 !   4)  Casi degeneri: matrice nulla, autovalori tripli, matrice scalata
-!   5)  Consistenza delle interfacce: inplace vs safe vs uplo='U','L'
-!   6)  Test statistico su N matrici SPD casuali: max errore vs LAPACK
-!   7)  Benchmark: eigen_small (tre uplo) vs LAPACK
+!   5)  Matrici con autovalori negativi (indefinite), 2x2 e 3x3
+!   6)  Consistenza delle interfacce: inplace vs safe vs uplo='U','L'
+!   7)  Test statistico su N matrici SPD casuali: max errore vs LAPACK
+!   8)  Accuratezza autovettori: residui, scale estreme, gap piccoli
+!   9)  Benchmark: eigen_small (tre uplo) vs LAPACK
 !
 ! Compilazione:
 !   gfortran -O3 -march=native eigen_small.f90 test_eigen_sp.f90 \
@@ -73,6 +75,7 @@ program test_eigen_sp
   call test_autovalori_negativi()
   call test_interfacce()
   call test_statistico_sp(N_STAT)
+  call test_accuratezza_sp()
   call benchmark(N_BENCH)
 
   !  Resoconto finale
@@ -651,7 +654,113 @@ contains
   end subroutine test_statistico_sp
 
   !=============================================================================
-  ! TEST 8 – BENCHMARK: eigen_small (tre uplo) vs LAPACK su N_BENCH matrici
+  ! TEST 8 – ACCURATEZZA DI AUTOVETTORI E AUTOVALORI (sp)
+  !
+  ! A differenza dei test precedenti, che misurano solo gli autovalori contro
+  ! LAPACK e l'ortonormalita', qui si controlla che gli autovettori soddisfino
+  ! davvero A*u = lambda*u, e si coprono i casi che in passato davano errori
+  ! molto sopra il limite eps/gap:
+  !   - 2x2 con scala molto piccola/grande (la soglia sul termine
+  !     off-diagonale deve essere scale-invariante)
+  !   - 2x2 con off-diagonale molto piccolo rispetto a |a11-a22|
+  !     (cancellazione in lambda1 - a11)
+  !   - 3x3 con due autovalori quasi coincidenti: l'autovettore isolato
+  !     (gap ~ 1) deve restare accurato, non ereditare l'errore del cluster
+  !   - residuo ||A U - U Lambda|| su matrici SPD casuali
+  !=============================================================================
+
+  subroutine test_accuratezza_sp()
+    real(sp), parameter :: tol_res = 1.0e-5_sp, tol_lam = 1.0e-5_sp
+    real(sp), parameter :: tol_ang = 1.0e-5_sp, tol_rel = 100.0_sp*epsilon(1.0_sp)
+    real(sp), parameter :: gaps(4) = [1.0e-1_sp, 1.0e-2_sp, 1.0e-3_sp, 1.0e-4_sp]
+    real(sp), parameter :: scales(2) = [1.0e-20_sp, 1.0e20_sp]
+    integer,  parameter :: n_mat = 200000
+    real(sp) :: A2(2,2), l2(2), U2(2,2), A3(3,3), l3(3), U3(3,3), lL(3), UL(3,3)
+    real(sp) :: Q(3,3), D(3), s, b, mx
+    integer  :: i, k, seed
+    character(len=40) :: lab
+
+    call sep("TEST 8 – Accuratezza autovettori sp (residui, scale, gap piccoli)")
+
+    ! 2x2 a scala molto piccola/grande: residuo normalizzato a s
+    do i = 1, size(scales)
+      s = scales(i)
+      A2 = s * reshape([2.0_sp, 1.0_sp, 1.0_sp, 3.0_sp], [2,2])
+      call eig_safe(A2, l2, U2)
+      write(lab,'(a,es8.1)') '2x2 scala ', s
+      call chk(trim(lab)//' res', res_sp(A2, U2, l2, 2)/s, tol_res)
+      call chk(trim(lab)//' ort', ort_sp(U2, 2), tol_res)
+    end do
+
+    ! 2x2 con off-diagonale piccolo: autovettore atteso [1, -b/(a22-a11)]
+    do i = 1, 2
+      if (i == 1) b = sqrt(epsilon(1.0_sp))
+      if (i == 2) b = 8.0_sp*epsilon(1.0_sp)
+      A2 = reshape([1.0_sp, b, b, 2.0_sp], [2,2])
+      call eig_safe(A2, l2, U2)
+      write(lab,'(a,es8.1)') '2x2 a12=', b
+      call chk(trim(lab)//' res', res_sp(A2, U2, l2, 2), tol_res)
+      call chk(trim(lab)//' v1 rel', abs(U2(2,1)/b + 1.0_sp), tol_rel)
+    end do
+
+    ! 3x3 con due autovalori quasi coincidenti, cluster in basso e in alto
+    Q = rot3_sp([0.3_sp, 0.7_sp, 1.1_sp])
+    do k = 1, 2
+      do i = 1, size(gaps)
+        if (k == 1) D = [0.1_sp, 0.1_sp + gaps(i), 1.0_sp]
+        if (k == 2) D = [0.1_sp, 1.0_sp - gaps(i), 1.0_sp]
+        A3 = matmul(Q * spread(D, 1, 3), transpose(Q))
+        A3 = 0.5_sp * (A3 + transpose(A3))
+        call eig_safe(A3, l3, U3)
+        call lapack_sp(A3, 3, lL, UL)
+        write(lab,'(a,i0,a,es8.1)') '3x3 cluster', k, ' gap=', gaps(i)
+        call chk(trim(lab)//' res', res_sp(A3, U3, l3, 3), tol_res)
+        call chk(trim(lab)//' ort', ort_sp(U3, 3), tol_res)
+        call chk(trim(lab)//' |Dlam|', maxval(abs(l3 - lL)), tol_lam)
+        ! autovettore isolato: colonna 3 (cluster in basso) o 1 (cluster in alto)
+        if (k == 1) call chk(trim(lab)//' v isol', ang_sp(U3(:,3), UL(:,3)), tol_ang)
+        if (k == 2) call chk(trim(lab)//' v isol', ang_sp(U3(:,1), UL(:,1)), tol_ang)
+      end do
+    end do
+
+    ! Residuo massimo su matrici SPD casuali
+    seed = 314159
+    mx = 0.0_sp
+    do i = 1, n_mat
+      call spd_sp(A3, 3, seed)
+      call eig_safe(A3, l3, U3)
+      mx = max(mx, res_sp(A3, U3, l3, 3))
+    end do
+    call chk('stat sp 3x3 residuo max', mx, tol_res)
+  end subroutine test_accuratezza_sp
+
+  !> Residuo max|A U - U Lambda|
+  function res_sp(A, U, lam, n) result(e)
+    integer,  intent(in) :: n
+    real(sp), intent(in) :: A(n,n), U(n,n), lam(n)
+    real(sp) :: e
+    e = maxval(abs(matmul(A, U) - U * spread(lam, 1, n)))
+  end function res_sp
+
+  !> Seno dell'angolo tra due vettori unitari (indipendente dal segno)
+  function ang_sp(v, w) result(a)
+    real(sp), intent(in) :: v(3), w(3)
+    real(sp) :: a
+    a = norm2(v - dot_product(v, w) * w)
+  end function ang_sp
+
+  !> Matrice di rotazione 3x3 da tre angoli
+  function rot3_sp(t) result(R)
+    real(sp), intent(in) :: t(3)
+    real(sp) :: R(3,3), c(3), s(3)
+    c = cos(t);  s = sin(t)
+    R = reshape([ c(1)*c(2),                  s(1)*c(2),                 -s(2),    &
+                  c(1)*s(2)*s(3)-s(1)*c(3),   s(1)*s(2)*s(3)+c(1)*c(3),   c(2)*s(3), &
+                  c(1)*s(2)*c(3)+s(1)*s(3),   s(1)*s(2)*c(3)-c(1)*s(3),   c(2)*c(3) ], [3,3])
+  end function rot3_sp
+
+  !=============================================================================
+  ! TEST 9 – BENCHMARK: eigen_small (tre uplo) vs LAPACK su N_BENCH matrici
   !=============================================================================
 
   subroutine benchmark(n_mat)
@@ -661,7 +770,7 @@ contains
     real(sp) :: t0, t1, acc
     integer  :: seed, k
 
-    call sep("TEST 8 – Benchmark 3x3 sp: eigen_small vs LAPACK (N=" // &
+    call sep("TEST 9 – Benchmark 3x3 sp: eigen_small vs LAPACK (N=" // &
              trim(i2s(n_mat)) // ")")
 
     ! warm-up

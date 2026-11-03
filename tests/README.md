@@ -15,7 +15,7 @@ Each test is available in both precision variants with `_dp` and `_sp` suffixes 
 
 **Purpose**: Exhaustive validation of `eigen_small` accuracy and performance vs LAPACK.
 
-**Test coverage (8 tests):**
+**Test coverage (9 tests):**
 1. **Symmetrize correctness**: Verifies `uplo='U'`, `'L'`, `'F'` produce identical eigenvalues
 2. **2×2 known cases**: Identity, diagonal, dense symmetric, repeated eigenvalues, null matrix
 3. **3×3 known cases**: Identity, diagonal (unsorted), dense, repeated eigenvalues, near-singular, scaled (large/small)
@@ -23,7 +23,11 @@ Each test is available in both precision variants with `_dp` and `_sp` suffixes 
 5. **Negative eigenvalues**: Tests indefinite matrices (both 2×2 and 3×3)
 6. **Interface consistency**: `eig_inplace` vs `eig_safe` vs `uplo` variants
 7. **Statistical test**: 2M random SPD matrices, reports max error vs LAPACK
-8. **Benchmark**: Performance comparison (eigen_small vs LAPACK on 1M matrices)
+8. **Eigenvector accuracy** (`TEST 8`): residual `‖AU − UΛ‖` and orthonormality on
+   - 2×2 at extreme scales (`1e-20`, `1e20`) and with a tiny off-diagonal term (cancellation in `λ₁ − a₁₁`)
+   - 3×3 with two nearly coincident eigenvalues (relative gap down to `1e-8` in dp), cluster at the bottom and at the top; the isolated eigenvector must stay accurate against LAPACK
+   - 200k random SPD matrices, max residual
+9. **Benchmark**: Performance comparison (eigen_small vs LAPACK on 1M matrices)
 
 **Validation strategy**: Uses LAPACK (`dsyev`/`ssyev`) as reference oracle, not hard-coded values. Checks:
 - `|λ_eigen_small - λ_LAPACK| < ε`
@@ -126,7 +130,7 @@ See main `Makefile` in project root for compiler options.
 ## Expected Test Results
 
 All tests should **pass** (0 FAIL) on standard hardware with:
-- **Double precision**: Errors ≲ 10⁻¹³ (eigenvalues), ≲ 10⁻¹⁴ (orthonormality)
-- **Single precision**: Errors ≲ 10⁻⁵ (eigenvalues), ≲ 10⁻⁶ (orthonormality)
+- **Double precision**: Errors ≲ 10⁻¹³ (eigenvalues), ≲ 10⁻¹⁴ (orthonormality and residual `‖AU − UΛ‖`)
+- **Single precision**: Errors ≲ 10⁻⁵ (eigenvalues and residual), ≲ 10⁻⁶ (orthonormality)
 
-Benchmark speedup: ~15-30× faster than LAPACK for 2×2/3×3 matrices.
+Benchmark speedup: ~3.5× faster than LAPACK for 3×3 matrices with gfortran and system LAPACK, ~7-8× with ifx and MKL (varies with CPU, compiler and LAPACK build; see the main README).
