@@ -1,19 +1,28 @@
 # Makefile per progetto Eigen_Small
 # Build di test in doppia/singola precisione da tests/double e tests/single
 
-# Compiler selection: gfortran (default) o ifx
-override FC := gfortran
+# Compiler selection: gfortran (default) o ifx, es. "make FC=ifx".
+# FC e' una variabile predefinita di make (f77): si usa gfortran solo se
+# l'utente non l'ha impostata da riga di comando o da ambiente.
+ifeq ($(origin FC),default)
+    FC := gfortran
+endif
 COMPILER := $(shell basename $(FC))
 
 # Compiler flags
 ifeq ($(COMPILER),gfortran)
     FFLAGS := -O3 -march=native -Wall -Wextra
+    MODFLAG := -J
     LAPACK_LIBS := -llapack -lblas
 else ifeq ($(COMPILER),ifx)
     FFLAGS := -O3 -xHost -warn all
-    LAPACK_LIBS := -mkl
+    MODFLAG := -module
+    # -mkl e' deprecato nelle versioni recenti di oneAPI; sequential evita il
+    # threading di MKL, inutile (e dannoso) su matrici 2x2/3x3
+    LAPACK_LIBS := -qmkl=sequential
 else
     FFLAGS := -O3
+    MODFLAG := -J
     LAPACK_LIBS := -llapack -lblas
 endif
 
@@ -67,17 +76,17 @@ dirs:
 # Compile eigen_small module
 $(EIGEN_OBJ): $(EIGEN_SRC) | dirs
 	@echo "Compiling eigen_small module..."
-	$(FC) $(FFLAGS) -J $(MODDIR) -c $< -o $@
+	$(FC) $(FFLAGS) $(MODFLAG) $(MODDIR) -c $< -o $@
 
 # Compile dp tests from tests/double
 $(OBJDIR)/%_dp.o: $(TESTDIR_DP)/%.f90 $(EIGEN_OBJ) | dirs
 	@echo "Compiling DP test $<..."
-	$(FC) $(FFLAGS) -J $(MODDIR) -I $(MODDIR) -c $< -o $@
+	$(FC) $(FFLAGS) $(MODFLAG) $(MODDIR) -I $(MODDIR) -c $< -o $@
 
 # Compile sp tests from tests/single
 $(OBJDIR)/%_sp.o: $(TESTDIR_SP)/%_sp.f90 $(EIGEN_OBJ) | dirs
 	@echo "Compiling SP test $<..."
-	$(FC) $(FFLAGS) -J $(MODDIR) -I $(MODDIR) -c $< -o $@
+	$(FC) $(FFLAGS) $(MODFLAG) $(MODDIR) -I $(MODDIR) -c $< -o $@
 
 # Link dp executables
 $(BINDIR)/%_dp: $(EIGEN_OBJ) $(OBJDIR)/%_dp.o
@@ -134,7 +143,7 @@ help:
 	@echo ""
 	@echo "Variables:"
 	@echo "  FC        - Fortran compiler (default: gfortran)"
-	@echo "              Example: make FC=ifx"
+	@echo "              Example: make FC=ifx  (after sourcing oneAPI setvars.sh)"
 	@echo "  DEBUG=1   - Enable debug flags"
 
 # Display compiler info

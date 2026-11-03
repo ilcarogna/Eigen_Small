@@ -7,7 +7,7 @@
 
 ## Overview
 
-`eigen_small` computes eigenvalues and eigenvectors of 2×2 and 3×3 real, symmetric matrices using **analytical formulas** (no iteration). It is an **almost plug-in replacement** for LAPACK's `dsyev`/`ssyev` for small matrices, offering ~15-30× speedup while maintaining comparable accuracy.
+`eigen_small` computes eigenvalues and eigenvectors of 2×2 and 3×3 real, symmetric matrices using **analytical formulas** (no iteration). It is an **almost plug-in replacement** for LAPACK's `dsyev`/`ssyev` for small matrices, offering a ~3-4× speedup (see [Performance](#performance)) with accuracy on par with LAPACK, including nearly singular matrices and clustered eigenvalues.
 
 **Key features:**
 - Analytical solution: O(1) complexity for 2×2, deterministic trigonometric method for 3×3
@@ -20,7 +20,7 @@
 ## Algorithms
 
 - **2×2**: Exact analytical formulas (quadratic characteristic equation)
-- **3×3**: Smith (1961) / Kopp (2008) trigonometric method + Gram-Schmidt orthogonalization
+- **3×3**: eigenvalues by the Smith (1961) / Kopp (2008) trigonometric method; the eigenvector of the most isolated eigenvalue comes from row cofactors, and the remaining pair is solved by a projected 2×2 problem in the orthogonal plane (deflation), with eigenvalues refined by Rayleigh quotients
 
 ### References
 
@@ -70,9 +70,15 @@ gfortran -O3 eigen_small.f90 example.f90 -o example && ./example
 
 ## Performance
 
-Benchmark speedup: **15-30× faster** than LAPACK for 3×3 matrices.
+Speedup over LAPACK `dsyev` for 3×3 double-precision matrices, measured with the bundled benchmark (`bin/test_eigen_dp`, 1M random SPD matrices, matrix generation time included in both columns; 20-core x86-64 machine):
 
-For 2×2 matrices, speedup reaches ~**30×**.
+| Toolchain | `eigen_small` | LAPACK `dsyev` | Speedup |
+|---|---|---|---|
+| gfortran `-O3 -march=native`, system LAPACK | ~320 ns | ~1130 ns | **~3.5×** |
+| ifx `-O3 -xHost`, MKL (`-qmkl=sequential`) | ~329 ns | ~2290 ns | **~7×** |
+| ifx `-O3 -xHost`, MKL (`-qmkl`, threaded) | ~323 ns | ~2650 ns | **~8×** |
+
+`eigen_small` runs at the same speed with both compilers; the difference comes from `dsyev`, which carries a larger fixed overhead in MKL for tiny matrices. Kernel-only timings with gfortran (matrices precomputed) are ~74 ns vs ~265 ns for 2×2 and ~305 ns vs ~1050 ns for 3×3, i.e. also ~3.5×. Results vary with CPU, compiler and LAPACK build; run the benchmark on your own setup. For Intel builds use `make FC=ifx` after sourcing oneAPI's `setvars.sh`.
 
 ## Testing
 
@@ -83,13 +89,13 @@ make double  # Double precision only
 make single  # Single precision only
 ```
 
-Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), and reconstruction (`M = U Λ U^T`).
+Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), the residual `‖M U − U Λ‖`, and reconstruction (`M = U Λ U^T`), including extreme scales and nearly coincident eigenvalues.
 
 ## Limitations
 
 - **Fixed size**: only 2×2 and 3×3 (use LAPACK for larger matrices)
 - **Symmetry not checked**: undefined behavior for non-symmetric input if `uplo`=`'F'`
-- **Accuracy**: tested for `cond(M) < 10¹²` (dp); extremely ill-conditioned matrices may yield less accurate eigenvectors
+- **Accuracy**: eigenvectors of eigenvalues separated by a relative gap `g` carry the unavoidable error ~`ε/g`, as with any backward-stable solver; against a quad-precision reference the errors are at or below LAPACK's for all gaps tested (down to `1e-9·λ_max` in dp)
 
 ## License
 

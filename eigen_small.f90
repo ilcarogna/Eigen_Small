@@ -1,14 +1,16 @@
 !==============================================================================
 ! MODULE eigen_small
 !
-! Calcolo analitico di autovalori e autovettori per matrici simmetriche
-! semidefinite positive 2x2 e 3x3, in singola (sp) e doppia (dp) precisione.
+! Calcolo analitico di autovalori e autovettori per matrici reali simmetriche
+! 2x2 e 3x3, in singola (sp) e doppia (dp) precisione.
 !
 ! Algoritmi:
 !   2x2 -- formule analitiche esatte (O(1), senza iterazione)
-!   3x3 -- autovalori: metodo trigonometrico di Smith (1961) / Kopp (2008)
-!          autovettori: prodotti vettoriali dei cofattori delle righe
-!          raffinamento ortogonale via Gram-Schmidt modificato
+!   3x3 -- autovalori: metodo trigonometrico di Smith (1961), variante di Kopp (2008)
+!          autovettore dell'autovalore piu' isolato: prodotti vettoriali dei
+!          cofattori delle righe; gli altri due: problema 2x2 proiettato nel
+!          piano ortogonale (deflazione), con autovalori da quozienti di
+!          Rayleigh
 !
 ! Argomento UPLO (character, optional, default 'F'):
 !   'U' o 'u' -- solo il triangolo superiore di M e' significativo
