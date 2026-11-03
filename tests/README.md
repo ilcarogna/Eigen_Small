@@ -102,6 +102,26 @@ bin/test_multiple_matrices_sp
 
 ---
 
+### 5. `test_accuracy` — Accuracy vs LAPACK against a Quad-Precision Reference
+
+**Purpose**: Check that `eigen_small` is as accurate as LAPACK, not only that it agrees with it. LAPACK is not used as the oracle here: both solvers are compared with a cyclic Jacobi solver in quad precision (`real128`) run on the same matrix.
+
+**Coverage**: 2×2 and 3×3; four families (random SPD, random indefinite, two nearly coincident eigenvalues, mixed-sign eigenvalues on different scales); 100,000 matrices per family and size. Measures the maximum error of eigenvalues (relative to `max|λ|`), eigenvectors (angle × gap, relative to `ε‖A‖`; skipped when `gap < 100 ε‖A‖`) and residual `‖AU − UΛ‖`.
+
+**Pass criterion**: for every family and quantity, error(`eigen_small`) ≤ 1.5 × error(LAPACK) + 1 and ≤ 20 (in units of `ε`). Exits with a non-zero status on failure.
+
+**Determinism**: the random generator is a fixed-seed LCG, so results are reproducible and match the table in the main README.
+
+**Run time**: about 20 s per precision.
+
+**Build & run:**
+```bash
+bin/test_accuracy_dp   # Double precision
+bin/test_accuracy_sp   # Single precision
+```
+
+---
+
 ## Building All Tests
 
 ```bash

@@ -80,6 +80,29 @@ Speedup over LAPACK `dsyev` for 3×3 double-precision matrices, measured with th
 
 `eigen_small` runs at the same speed with both compilers; the difference comes from `dsyev`, which carries a larger fixed overhead in MKL for tiny matrices. Kernel-only timings with gfortran (matrices precomputed) are ~74 ns vs ~265 ns for 2×2 and ~305 ns vs ~1050 ns for 3×3, i.e. also ~3.5×. Results vary with CPU, compiler and LAPACK build; run the benchmark on your own setup. For Intel builds use `make FC=ifx` after sourcing oneAPI's `setvars.sh`.
 
+## Accuracy
+
+Accuracy is compared with LAPACK (`dsyev`/`ssyev`) against a quad-precision Jacobi reference by the test programs `bin/test_accuracy_dp` and `bin/test_accuracy_sp` (about 20 s each; the random generator is deterministic, so the figures below are exactly reproducible). Each run uses 100,000 matrices for each of four families and for both sizes:
+
+- random SPD matrices;
+- random indefinite matrices;
+- two nearly coincident eigenvalues (relative gap from `1e-1` down to `1e-9` in dp, `1e-5` in sp);
+- eigenvalues of mixed sign spanning several orders of magnitude (up to `1e6` in dp, `1e3` in sp).
+
+Worst case over the four families, in units of machine epsilon times `‖A‖` (eigenvectors: units of `ε‖A‖/gap`, the unavoidable error of any backward-stable solver):
+
+| | | eigenvalues | | eigenvectors | | residual `‖AU − UΛ‖` | |
+|---|---|---|---|---|---|---|---|
+| | | `eigen_small` | LAPACK | `eigen_small` | LAPACK | `eigen_small` | LAPACK |
+| dp | 2×2 | 1.3 | 2.1 | 1.3 | 1.6 | 1.7 | 2.4 |
+| dp | 3×3 | 3.9 | 7.7 | 2.7 | 5.2 | 3.5 | 6.8 |
+| sp | 2×2 | 1.4 | 1.9 | 1.2 | 1.6 | 1.7 | 2.2 |
+| sp | 3×3 | 3.8 | 7.8 | 2.5 | 5.0 | 3.8 | 7.1 |
+
+On these classes of matrices `eigen_small` is as accurate as LAPACK or better: about the same for 2×2 and up to about 2× smaller errors for 3×3. All errors are a few units of `ε‖A‖`, as expected for a backward-stable computation. This also holds for clustered eigenvalues, where naive analytical formulas lose accuracy; the deflation scheme described above is what avoids that. The test passes when, for every family and quantity, the error of `eigen_small` is at most `1.5 ×` LAPACK's `+ 1` and at most 20 units, so it also guards against accuracy regressions.
+
+The figures are empirical, measured on the families listed, not a proof of a bound. Not covered: errors measured *relative to each eigenvalue* (very small eigenvalues next to large ones are accurate to `ε‖A‖`, like LAPACK's), matrices larger than 3×3, and non-symmetric input.
+
 ## Testing
 
 Test suite in `tests/double/` (dp) and `tests/single/` (sp) validates against LAPACK:
@@ -89,7 +112,7 @@ make double  # Double precision only
 make single  # Single precision only
 ```
 
-Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), the residual `‖M U − U Λ‖`, and reconstruction (`M = U Λ U^T`), including extreme scales and nearly coincident eigenvalues.
+Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), the residual `‖M U − U Λ‖`, and reconstruction (`M = U Λ U^T`), including extreme scales and nearly coincident eigenvalues, and compare accuracy with LAPACK against a quad-precision reference.
 
 ## Limitations
 
