@@ -170,22 +170,29 @@ contains
     if (v(1) > v(2)) then; t=v(1); v(1)=v(2); v(2)=t; end if
   end subroutine sort3_sp
 
-  !> Determinante 3x3 (sviluppo di Sarrus sulla prima riga)
-  pure function det3_dp(B) result(d)
-    real(dp), intent(in) :: B(3,3)
-    real(dp) :: d
-    d =   B(1,1)*(B(2,2)*B(3,3) - B(2,3)*B(3,2)) &
-        - B(1,2)*(B(2,1)*B(3,3) - B(2,3)*B(3,1)) &
-        + B(1,3)*(B(2,1)*B(3,2) - B(2,2)*B(3,1))
-  end function det3_dp
-
-  pure function det3_sp(B) result(d)
-    real(sp), intent(in) :: B(3,3)
-    real(sp) :: d
-    d =   B(1,1)*(B(2,2)*B(3,3) - B(2,3)*B(3,2)) &
-        - B(1,2)*(B(2,1)*B(3,3) - B(2,3)*B(3,1)) &
-        + B(1,3)*(B(2,1)*B(3,2) - B(2,2)*B(3,1))
-  end function det3_sp
+  ! NOTA: det3_dp / det3_sp (determinante 3x3, sviluppo sulla prima riga) sono
+  ! state disabilitate perche' mai utilizzate: il modulo e' private, nessuna
+  ! routine le chiama e l'algoritmo calcola c0 = -det(B) direttamente dai
+  ! coefficienti (evitando acos(det(B)/2), che perde precisione con autovalori
+  ! vicini). Il codice e' conservato qui sotto nel caso servisse in futuro,
+  ! ad esempio per verifiche nei test (det(A) = prodotto degli autovalori).
+  !
+  ! !> Determinante 3x3 (sviluppo di Sarrus sulla prima riga)
+  ! pure function det3_dp(B) result(d)
+  !   real(dp), intent(in) :: B(3,3)
+  !   real(dp) :: d
+  !   d =   B(1,1)*(B(2,2)*B(3,3) - B(2,3)*B(3,2)) &
+  !       - B(1,2)*(B(2,1)*B(3,3) - B(2,3)*B(3,1)) &
+  !       + B(1,3)*(B(2,1)*B(3,2) - B(2,2)*B(3,1))
+  ! end function det3_dp
+  !
+  ! pure function det3_sp(B) result(d)
+  !   real(sp), intent(in) :: B(3,3)
+  !   real(sp) :: d
+  !   d =   B(1,1)*(B(2,2)*B(3,3) - B(2,3)*B(3,2)) &
+  !       - B(1,2)*(B(2,1)*B(3,3) - B(2,3)*B(3,1)) &
+  !       + B(1,3)*(B(2,1)*B(3,2) - B(2,2)*B(3,1))
+  ! end function det3_sp
 
   !> Prodotto vettoriale a x b in R^3
   pure function cross_dp(a, b) result(c)
