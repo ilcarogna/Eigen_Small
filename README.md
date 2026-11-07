@@ -78,7 +78,7 @@ Speedup over LAPACK `dsyev` for 3×3 double-precision matrices, measured with th
 | ifx `-O3 -xHost`, MKL (`-qmkl=sequential`) | ~329 ns | ~2290 ns | **~7×** |
 | ifx `-O3 -xHost`, MKL (`-qmkl`, threaded) | ~323 ns | ~2650 ns | **~8×** |
 
-`eigen_small` runs at the same speed with both compilers; the difference comes from `dsyev`, which carries a larger fixed overhead in MKL for tiny matrices. Kernel-only timings with gfortran (matrices precomputed) are ~74 ns vs ~265 ns for 2×2 and ~305 ns vs ~1050 ns for 3×3, i.e. also ~3.5×. Results vary with CPU, compiler and LAPACK build; run the benchmark on your own setup. For Intel builds use `make FC=ifx` after sourcing oneAPI's `setvars.sh`.
+`eigen_small` runs at the same speed with both compilers; the difference comes from `dsyev`, which carries a larger fixed overhead in MKL for tiny matrices. Kernel-only timings with gfortran (matrices precomputed) are ~74 ns vs ~265 ns for 2×2 and ~305 ns vs ~1050 ns for 3×3, i.e. also ~3.5×. The dedicated benchmark `bin/bench_speed_dp` / `bin/bench_speed_sp` excludes matrix generation altogether and is robust to CPU noise (interleaved methods in rotating order, paired baseline subtraction, medians over 15 repetitions; see [tests/README.md](tests/README.md)). With gfortran it gives, for 3×3 matrices with eigenvectors, a speedup over `dsyev` of **~3.2×** in dp and **~3.6×** in sp (`eig_inplace` and `eig_safe` share the same kernel and run at the same speed). Results vary with CPU, compiler and LAPACK build; run the benchmark on your own setup. For Intel builds use `make FC=ifx` after sourcing oneAPI's `setvars.sh`.
 
 ## Accuracy
 
@@ -111,6 +111,8 @@ make help    # Print a help message
 make double  # Double precision only
 make single  # Single precision only
 ```
+
+Speed benchmark (matrix generation excluded): `bin/bench_speed_dp` and `bin/bench_speed_sp`.
 
 Tests verify eigenvalue accuracy, orthonormality (`U^T U = I`), the residual `‖M U − U Λ‖`, and reconstruction (`M = U Λ U^T`), including extreme scales and nearly coincident eigenvalues, and compare accuracy with LAPACK against a quad-precision reference.
 

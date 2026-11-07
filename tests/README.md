@@ -27,7 +27,7 @@ Each test is available in both precision variants with `_dp` and `_sp` suffixes 
    - 2×2 at extreme scales (`1e-20`, `1e20`) and with a tiny off-diagonal term (cancellation in `λ₁ − a₁₁`)
    - 3×3 with two nearly coincident eigenvalues (relative gap down to `1e-8` in dp), cluster at the bottom and at the top; the isolated eigenvector must stay accurate against LAPACK
    - 200k random SPD matrices, max residual
-9. **Benchmark**: Performance comparison (eigen_small vs LAPACK on 1M matrices)
+9. **Benchmark**: Performance comparison (eigen_small vs LAPACK on 1M matrices; includes matrix generation time — see `bench_speed` for a kernel-only measurement)
 
 **Validation strategy**: Uses LAPACK (`dsyev`/`ssyev`) as reference oracle, not hard-coded values. Checks:
 - `|λ_eigen_small - λ_LAPACK| < ε`
@@ -122,6 +122,30 @@ bin/test_accuracy_sp   # Single precision
 
 ---
 
+### 6. `bench_speed` — Speed Benchmark, Matrix Generation Excluded
+
+**Purpose**: Measure the real speed ratio between `eigen_small` and LAPACK (`dsyev`/`ssyev`) for 3×3 matrices, without counting the cost of producing the test matrices (unlike the benchmark in `test_eigen`).
+
+**Methods timed**: `eig_inplace`, `eig_safe`, LAPACK `dsyev`/`ssyev` with `jobz='V'` (eigenvectors computed) and a preallocated workspace of optimal size (from a `lwork=-1` query).
+
+**Design**:
+- All 1M matrices are generated beforehand in `A(3,3,N)`; the timed loops contain no I/O.
+- `eig_inplace` and LAPACK overwrite their input, so each iteration copies `A(:,:,k)` into a work matrix. The cost of that copy is timed by a baseline loop (same copy and checksum, no computation) and subtracted.
+- Robust to CPU frequency drift, machine load and execution order: one untimed warm-up pass; the four methods are interleaved inside each repetition, in an order rotated at every repetition; each net time is `time − baseline` from the *same* repetition (paired measurement).
+- 15 repetitions; reports **median** and minimum net time per matrix and the spread `(max − min)/median`. Speedups are ratios of medians. If any spread exceeds 10 % a warning is printed: the machine is noisy and the figures are unreliable (pin the process to one core, e.g. `taskset -c 2 bin/bench_speed_dp`, and check the CPU governor).
+- Eigenvalue checksums prevent the compiler from removing the computation and verify that the methods agree.
+- In the `sp` version timers, statistics and checksums are kept in double precision.
+
+**Typical output** (gfortran `-O3 -march=native`, medians; varies with CPU and LAPACK build): a speedup of `eig_inplace` ≈ `eig_safe` over LAPACK of about 3.2× (dp) and 3.6× (sp), i.e. a few hundred ns per matrix against roughly one µs. `eig_inplace` and `eig_safe` must come out equal within noise: they share the same kernel.
+
+**Build & run:**
+```bash
+bin/bench_speed_dp   # Double precision
+bin/bench_speed_sp   # Single precision
+```
+
+---
+
 ## Building All Tests
 
 ```bash
@@ -153,4 +177,4 @@ All tests should **pass** (0 FAIL) on standard hardware with:
 - **Double precision**: Errors ≲ 10⁻¹³ (eigenvalues), ≲ 10⁻¹⁴ (orthonormality and residual `‖AU − UΛ‖`)
 - **Single precision**: Errors ≲ 10⁻⁵ (eigenvalues and residual), ≲ 10⁻⁶ (orthonormality)
 
-Benchmark speedup: ~3.5× faster than LAPACK for 3×3 matrices with gfortran and system LAPACK, ~7-8× with ifx and MKL (varies with CPU, compiler and LAPACK build; see the main README).
+Benchmark speedup (`bench_speed`, matrix generation excluded): ~3.2× (dp) and ~3.6× (sp) faster than LAPACK for 3×3 matrices with gfortran and system LAPACK, ~7-8× with ifx and MKL (varies with CPU, compiler and LAPACK build; see the main README).
