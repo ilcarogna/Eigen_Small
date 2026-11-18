@@ -128,8 +128,6 @@ Copyright (C) 2026 Giancarlo de Gasperis
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 2 of the License, or (at your option) any later version (SPDX: `GPL-2.0-or-later`). See the [LICENSE](LICENSE) file for details.
 
-Versions up to and including commit `6db02fc` were released under the MIT License, and later versions up to and including commit `fb681bc` under `GPL-3.0-or-later`; copies obtained from those versions remain available under those terms.
-
 ## Acknowledgments
 
 This implementation was developed independently from scratch, following the algorithms described in:
