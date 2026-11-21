@@ -408,7 +408,9 @@ contains
     c0 = -(d1*d2*d3 + 2.0_dp*A(1,2)*A(1,3)*A(2,3) &
            - d1*A(2,3)**2 - d2*A(1,3)**2 - d3*A(1,2)**2)    ! = -det(B)
 
-    pp   = -3.0_dp * c1                       ! >= 0
+    ! pp >= 0 in aritmetica esatta (c1 = -(d1^2+d2^2+d3^2)/2 - p1); max
+    ! come cintura contro l'arrotondamento, prima di sqrt(pp)
+    pp   = max(-3.0_dp * c1, 0.0_dp)
     qq   = -13.5_dp * c0
     ! Il discriminante del polinomio e' calcolato direttamente dai
     ! coefficienti e l'angolo si ottiene con atan2(sqrt(disc), qq): a
@@ -450,7 +452,9 @@ contains
     c0 = -(d1*d2*d3 + 2.0_sp*A(1,2)*A(1,3)*A(2,3) &
            - d1*A(2,3)**2 - d2*A(1,3)**2 - d3*A(1,2)**2)    ! = -det(B)
 
-    pp   = -3.0_sp * c1                       ! >= 0
+    ! pp >= 0 in aritmetica esatta (c1 = -(d1^2+d2^2+d3^2)/2 - p1); max
+    ! come cintura contro l'arrotondamento, prima di sqrt(pp)
+    pp   = max(-3.0_sp * c1, 0.0_sp)
     qq   = -13.5_sp * c0
     ! Il discriminante del polinomio e' calcolato direttamente dai
     ! coefficienti e l'angolo si ottiene con atan2(sqrt(disc), qq): a
