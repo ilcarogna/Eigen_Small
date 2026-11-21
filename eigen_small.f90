@@ -31,10 +31,11 @@
 !   - Colonna k di U = autovettore normalizzato di lambda(k)
 !
 ! Note di implementazione:
-!   - Tutti i kernel interni sono PURE: nessun effetto collaterale,
-!     nessuna allocazione heap; W e' sempre una variabile locale sullo stack.
-!   - Le procedure pubbliche non sono pure per compatibilita' con
-!     intent(inout) su M in eig_inplace.
+!   - Tutte le procedure sono PURE, anche quelle pubbliche (intent(inout)
+!     su M in eig_inplace e' ammesso in una subroutine pura): nessun effetto
+!     collaterale, nessuno stato (niente SAVE), nessuna allocazione heap; W
+!     e' sempre una variabile locale sullo stack. Si possono chiamare da
+!     qualunque thread (OpenMP) e dentro DO CONCURRENT.
 !   - La logica uplo e' incapsulata interamente in symmetrize_dp/sp;
 !     dispatch e i kernel non la conoscono.
 !
@@ -721,7 +722,7 @@ contains
   ! eig_safe:    scrive gli autovettori in U, M e' intent(in) e non cambia
   !=============================================================================
 
-  subroutine eig_ip_dp(M, lambda, uplo)
+  pure subroutine eig_ip_dp(M, lambda, uplo)
     real(dp),  intent(inout)        :: M(:,:)   ! [in] matrice; [out] autovettori
     real(dp),  intent(out)          :: lambda(:)
     character, intent(in), optional :: uplo     ! 'U', 'L', 'F' (default 'F')
@@ -733,7 +734,7 @@ contains
     call dispatch_dp(W, lambda, M)     ! autovettori scritti direttamente in M
   end subroutine eig_ip_dp
 
-  subroutine eig_ip_sp(M, lambda, uplo)
+  pure subroutine eig_ip_sp(M, lambda, uplo)
     real(sp),  intent(inout)        :: M(:,:)
     real(sp),  intent(out)          :: lambda(:)
     character, intent(in), optional :: uplo
@@ -745,7 +746,7 @@ contains
     call dispatch_sp(W, lambda, M)
   end subroutine eig_ip_sp
 
-  subroutine eig_safe_dp(M, lambda, U, uplo)
+  pure subroutine eig_safe_dp(M, lambda, U, uplo)
     real(dp),  intent(in)           :: M(:,:)   ! non viene mai modificata
     real(dp),  intent(out)          :: lambda(:)
     real(dp),  intent(out)          :: U(:,:)   ! pre-allocata dal chiamante
@@ -758,7 +759,7 @@ contains
     call dispatch_dp(W, lambda, U)
   end subroutine eig_safe_dp
 
-  subroutine eig_safe_sp(M, lambda, U, uplo)
+  pure subroutine eig_safe_sp(M, lambda, U, uplo)
     real(sp),  intent(in)           :: M(:,:)
     real(sp),  intent(out)          :: lambda(:)
     real(sp),  intent(out)          :: U(:,:)
