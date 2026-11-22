@@ -46,7 +46,7 @@
 !     matrices. Int. J. Mod. Phys. C, 19(03), 523-548. arXiv:physics/0610206
 !==============================================================================
 module eigen_small
-  use iso_fortran_env, only: sp => real32, dp => real64
+  use, intrinsic :: iso_fortran_env, only: sp => real32, dp => real64
   implicit none
   private
 
